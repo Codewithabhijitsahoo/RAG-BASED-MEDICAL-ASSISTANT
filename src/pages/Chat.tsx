@@ -25,6 +25,8 @@ export default function Chat() {
     scrollRef,
   } = useChat();
 
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const messages = activeSession?.messages ?? [];
