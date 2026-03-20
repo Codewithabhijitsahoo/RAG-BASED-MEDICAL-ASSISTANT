@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Menu, X, ArrowLeft } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Menu, X, ArrowLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
@@ -9,6 +9,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { EmptyChat } from "@/components/chat/EmptyChat";
 import { MedicalDisclaimer } from "@/components/MedicalDisclaimer";
+import { useAuth } from "@/hooks/useAuth";
 import { useChat } from "@/hooks/useChat";
 
 export default function Chat() {
@@ -24,6 +25,8 @@ export default function Chat() {
     scrollRef,
   } = useChat();
 
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const messages = activeSession?.messages ?? [];
@@ -83,7 +86,12 @@ export default function Chat() {
           <span className="text-sm font-medium text-foreground">
             {activeSession ? activeSession.title : "MedAssist AI"}
           </span>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { logout(); navigate("/"); }} aria-label="Log out">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </header>
 
         {/* Messages */}

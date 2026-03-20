@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Activity, Eye, EyeOff } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Activity, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Signup() {
+  const { signup } = useAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({});
 
   const validate = () => {
@@ -23,10 +27,18 @@ export default function Signup() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    console.log("Signup", { name, email, password });
+    setLoading(true);
+    try {
+      await signup(name, email, password);
+      navigate("/chat");
+    } catch {
+      setErrors({ email: "Signup failed. Please try again." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -66,7 +78,10 @@ export default function Signup() {
             {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
           </div>
 
-          <Button type="submit" className="w-full" size="lg">Create account</Button>
+          <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Create account
+          </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">

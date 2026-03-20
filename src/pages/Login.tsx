@@ -1,14 +1,18 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Activity, Eye, EyeOff } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Activity, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Login() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const validate = () => {
@@ -21,11 +25,18 @@ export default function Login() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    // TODO: integrate with backend
-    console.log("Login", { email, password });
+    setLoading(true);
+    try {
+      await login(email, password);
+      navigate("/chat");
+    } catch {
+      setErrors({ email: "Login failed. Please try again." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -59,7 +70,10 @@ export default function Login() {
             {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
           </div>
 
-          <Button type="submit" className="w-full" size="lg">Sign in</Button>
+          <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Sign in
+          </Button>
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
