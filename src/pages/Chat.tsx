@@ -84,7 +84,12 @@ export default function Chat() {
           <span className="text-sm font-medium text-foreground">
             {activeSession ? activeSession.title : "MedAssist AI"}
           </span>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { logout(); navigate("/"); }} aria-label="Log out">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </header>
 
         {/* Messages */}
