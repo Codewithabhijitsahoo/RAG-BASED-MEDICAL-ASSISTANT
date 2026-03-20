@@ -9,6 +9,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { EmptyChat } from "@/components/chat/EmptyChat";
 import { MedicalDisclaimer } from "@/components/MedicalDisclaimer";
+import { useAuth } from "@/hooks/useAuth";
 import { useChat } from "@/hooks/useChat";
 
 export default function Chat() {
