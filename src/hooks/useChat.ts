@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useAuth } from "./useAuth";
 
 export interface ChatMessage {
   id: string;
@@ -14,56 +15,100 @@ export interface ChatSession {
   createdAt: Date;
 }
 
-const STORAGE_KEY = "medchat_sessions";
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "http://localhost:4000";
 
-function loadSessions(): ChatSession[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw, (key, value) => {
-      if (key === "timestamp" || key === "createdAt") return new Date(value);
-      return value;
-    });
-  } catch {
-    return [];
-  }
+async function fetchSessions(userEmail: string): Promise<ChatSession[]> {
+  const res = await fetch(`${API_BASE}/api/chat/sessions?email=${userEmail}`);
+  if (!res.ok) throw new Error("Failed to fetch sessions");
+  const { sessions } = await res.json();
+  
+  // Load messages for the first session or all? 
+  // Let's load messages on demand or for all if simple
+  const sessionsWithMessages = await Promise.all(sessions.map(async (s: any) => {
+    const mRes = await fetch(`${API_BASE}/api/chat/sessions/${s.id}/messages`);
+    const { messages } = await mRes.json();
+    return {
+      ...s,
+      createdAt: new Date(s.createdAt),
+      messages: messages.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }))
+    };
+  }));
+  return sessionsWithMessages;
 }
 
-function saveSessions(sessions: ChatSession[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+async function saveSessionAPI(id: string, userEmail: string, title: string) {
+  await fetch(`${API_BASE}/api/chat/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, userEmail, title })
+  });
+}
+
+async function saveMessageAPI(id: string, sessionId: string, role: string, content: string, timestamp: Date) {
+  await fetch(`${API_BASE}/api/chat/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, sessionId, role, content, timestamp: timestamp.toISOString() })
+  });
+}
+
+async function deleteSessionAPI(id: string) {
+  await fetch(`${API_BASE}/api/chat/sessions/${id}`, { method: "DELETE" });
 }
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-// Simulated API call — replace with real endpoint
-async function sendMessageAPI(message: string, _history: ChatMessage[]): Promise<string> {
-  await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
+// API call to the Python Flask backend (server_py/app.py)
+const CHAT_API_BASE = (import.meta.env.VITE_CHAT_API_BASE as string) || "http://localhost:8080";
 
-  const responses = [
-    "Based on the symptoms you've described, there are several possible explanations. However, I want to emphasize that this information is for educational purposes only. **Please consult a healthcare professional** for an accurate diagnosis and personalized treatment plan.",
-    "That's a great question. According to current medical literature, the condition you're asking about typically presents with varying symptoms. I'd recommend scheduling an appointment with your primary care physician for a thorough evaluation.",
-    "I understand your concern. While I can provide general health information, it's important to note that individual cases can vary significantly. A qualified healthcare provider can offer the most relevant guidance for your specific situation.",
-    "The symptoms you're describing could be associated with several conditions. For accurate diagnosis, clinical examination and possibly lab tests would be needed. I'd strongly suggest consulting with a medical professional.",
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
+async function sendMessageAPI(message: string, _history: ChatMessage[]): Promise<string> {
+  const form = new URLSearchParams();
+  form.append("msg", message);
+
+  const res = await fetch(`${CHAT_API_BASE}/get`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || "Chat backend error");
+  }
+
+  const text = await res.text();
+  return text;
 }
 
 export function useChat() {
-  const [sessions, setSessions] = useState<ChatSession[]>(loadSessions);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
-    const s = loadSessions();
-    return s.length > 0 ? s[0].id : null;
-  });
+  const { user } = useAuth();
+  const userEmail = user?.email;
+
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
-
+  // Reload sessions when user changes (from DATABASE)
   useEffect(() => {
-    saveSessions(sessions);
-  }, [sessions]);
+    if (!userEmail) {
+      setSessions([]);
+      setActiveSessionId(null);
+      return;
+    }
+
+    fetchSessions(userEmail).then(loaded => {
+      setSessions(loaded);
+      setActiveSessionId(loaded.length > 0 ? loaded[0].id : null);
+    }).catch(console.error);
+  }, [userEmail]);
+
+  const activeSession = useMemo(() => 
+    sessions.find((s) => s.id === activeSessionId) ?? null,
+    [sessions, activeSessionId]
+  );
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -71,20 +116,23 @@ export function useChat() {
     }, 50);
   }, []);
 
-  const createSession = useCallback(() => {
+  const createSession = useCallback(async () => {
+    if (!userEmail) return null;
     const session: ChatSession = {
       id: generateId(),
       title: "New conversation",
       messages: [],
       createdAt: new Date(),
     };
+    await saveSessionAPI(session.id, userEmail, session.title);
     setSessions((prev) => [session, ...prev]);
     setActiveSessionId(session.id);
     return session.id;
-  }, []);
+  }, [userEmail]);
 
   const deleteSession = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      await deleteSessionAPI(id);
       setSessions((prev) => {
         const next = prev.filter((s) => s.id !== id);
         if (activeSessionId === id) {
@@ -102,8 +150,10 @@ export function useChat() {
 
       let sessionId = activeSessionId;
       if (!sessionId) {
-        sessionId = createSession();
+        sessionId = await createSession();
       }
+
+      if (!sessionId) return;
 
       const userMsg: ChatMessage = {
         id: generateId(),
@@ -129,6 +179,10 @@ export function useChat() {
       try {
         const currentSession = sessions.find((s) => s.id === sessionId);
         const history = currentSession ? [...currentSession.messages, userMsg] : [userMsg];
+        
+        // Save user message to DB
+        await saveMessageAPI(userMsg.id, sessionId, userMsg.role, userMsg.content, userMsg.timestamp);
+
         const response = await sendMessageAPI(content, history);
 
         const botMsg: ChatMessage = {
@@ -137,6 +191,9 @@ export function useChat() {
           content: response,
           timestamp: new Date(),
         };
+
+        // Save bot message to DB
+        await saveMessageAPI(botMsg.id, sessionId, botMsg.role, botMsg.content, botMsg.timestamp);
 
         setSessions((prev) =>
           prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, botMsg] } : s)),

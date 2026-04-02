@@ -16,6 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const STORAGE_KEY = "medchat_auth";
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || "http://localhost:4000";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -29,18 +30,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, _password: string) => {
-    // TODO: Replace with real API call to Flask backend
-    await new Promise((r) => setTimeout(r, 600));
-    const u: AuthUser = { name: email.split("@")[0], email };
+  const login = async (email: string, password: string) => {
+    const res = await fetch(`${API_BASE}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      throw new Error(payload?.error || "Login failed");
+    }
+    const { user: u } = await res.json();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     setUser(u);
   };
 
-  const signup = async (name: string, email: string, _password: string) => {
-    // TODO: Replace with real API call to Flask backend
-    await new Promise((r) => setTimeout(r, 600));
-    const u: AuthUser = { name, email };
+  const signup = async (name: string, email: string, password: string) => {
+    const res = await fetch(`${API_BASE}/api/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password }),
+    });
+    if (res.status === 409) {
+      throw new Error('Email already registered');
+    }
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      throw new Error(payload?.error || "Signup failed");
+    }
+    const { user: u } = await res.json();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     setUser(u);
   };

@@ -58,16 +58,24 @@ export function ChatSidebar({ sessions, activeSessionId, onSelectSession, onNewS
             >
               <MessageSquare className="h-4 w-4 shrink-0" />
               <span className="flex-1 truncate">{s.title}</span>
-              <button
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
                   onDeleteSession(s.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    onDeleteSession(s.id);
+                  }
                 }}
                 className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block"
                 aria-label="Delete conversation"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              </span>
             </button>
           ))}
         </div>

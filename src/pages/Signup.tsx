@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Activity, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,13 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function Signup() {
-  const { signup } = useAuth();
+  const { signup, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) navigate("/chat", { replace: true });
+  }, [user, navigate]);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,8 +39,8 @@ export default function Signup() {
     try {
       await signup(name, email, password);
       navigate("/chat");
-    } catch {
-      setErrors({ email: "Signup failed. Please try again." });
+    } catch (err: any) {
+      setErrors({ email: err.message || "Signup failed. Please try again." });
     } finally {
       setLoading(false);
     }
